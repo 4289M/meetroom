@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% from "_macros.html" import status_badge %}
+{% block title %}การจองของฉัน{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>การจองของฉัน</h1>
+    <p class="muted">ดู แก้ไข หรือยกเลิกการจองห้องประชุมของคุณ</p>
+  </div>
+  <a class="btn btn-primary" href="{{ url_for('bookings.new') }}">+ จองห้องใหม่</a>
+</div>
+
+<section class="card">
+  <nav class="tabs" aria-label="สถานะการจอง">
+    {% for key, label in [('upcoming', 'กำลังจะถึง'), ('past', 'ที่ผ่านมา'), ('cancelled', 'ยกเลิกแล้ว')] %}
+    <a href="{{ url_for('bookings.my_bookings', tab=key, q=q or None) }}" class="{{ 'active' if tab == key }}">
+      {{ label }} <span class="count">{{ counts[key] }}</span>
+    </a>
+    {% endfor %}
+  </nav>
+
+  <form class="toolbar" method="get" role="search">
+    <input type="hidden" name="tab" value="{{ tab }}">
+    <label class="sr-only" for="q">ค้นหา</label>
+    <input type="search" id="q" name="q" value="{{ q }}" placeholder="ค้นหาหัวข้อหรือชื่อห้อง">
+    <button class="btn" type="submit">ค้นหา</button>
+    {% if q %}<a class="btn btn-ghost" href="{{ url_for('bookings.my_bookings', tab=tab) }}">ล้าง</a>{% endif %}
+  </form>
+
+  {% if items %}
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>หัวข้อ</th>
+          <th>ห้อง</th>
+          <th>วัน / เวลา</th>
+          <th class="right">ผู้เข้าร่วม</th>
+          <th>สถานะ</th>
+          <th class="right">จัดการ</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in items %}{% set b = item.b %}
+        <tr>
+          <td>
+            <strong>{{ b.title }}</strong>
+            {% if b.recurring_group %}<span class="chip" title="การจองซ้ำ">↻ จองซ้ำ</span>{% endif %}
+            <div>{% for eq in b.equipment.split(',') if eq.strip() %}<span class="chip">{{ eq.strip() }}</span>{% endfor %}</div>
+            {% if b.note %}<div class="muted small">{{ b.note }}</div>{% endif %}
+          </td>
+          <td>{{ b.room_name }}<div class="muted small">{{ b.location }}</div></td>
+          <td class="nowrap">{{ b.booking_date|thai_date }}<div class="muted small">{{ b.start_time }}–{{ b.end_time }} น.</div></td>
+          <td class="right">{{ b.attendees }} คน</td>
+          <td>{{ status_badge(b.status) }}</td>
+          <td>
+            {% if item.editable %}
+            <div class="actions">
+              <a class="btn btn-sm" href="{{ url_for('bookings.edit', booking_id=b.id) }}">แก้ไข</a>
+              {% if b.recurring_group %}
+              <details class="dropdown">
+                <summary class="btn btn-sm btn-danger">ยกเลิก ▾</summary>
+                <form class="dropdown-menu" method="post" action="{{ url_for('bookings.cancel', booking_id=b.id) }}">
+                  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+                  <button type="submit" name="scope" value="one" data-confirm="ยืนยันยกเลิกการจองครั้งนี้ ({{ b.booking_date|thai_date_short }})?">ยกเลิกเฉพาะครั้งนี้</button>
+                  <button type="submit" name="scope" value="series" data-confirm="ยืนยันยกเลิกการจองทั้งชุด (ทุกครั้งที่ยังไม่ถึง)?">ยกเลิกทั้งชุด</button>
+                </form>
+              </details>
+              {% else %}
+              <form method="post" action="{{ url_for('bookings.cancel', booking_id=b.id) }}" data-confirm="ยืนยันยกเลิกการจอง “{{ b.title }}”?">
+                <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+                <input type="hidden" name="scope" value="one">
+                <button type="submit" class="btn btn-sm btn-danger">ยกเลิก</button>
+              </form>
+              {% endif %}
+            </div>
+            {% else %}
+            <div class="actions muted small">—</div>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state">
+    {% if q %}ไม่พบการจองที่ตรงกับ “{{ q }}”
+    {% elif tab == 'upcoming' %}ยังไม่มีการจองที่กำลังจะถึง · <a href="{{ url_for('bookings.new') }}">จองห้องเลย</a>
+    {% elif tab == 'past' %}ยังไม่มีประวัติการจอง
+    {% else %}ไม่มีการจองที่ถูกยกเลิก{% endif %}
+  </div>
+  {% endif %}
+</section>
+{% endblock %}

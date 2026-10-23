@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}ภาพรวม{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>ภาพรวมการจอง</h1>
+    <p class="muted">{{ selected|thai_date }}{% if is_today %} · วันนี้{% endif %}</p>
+  </div>
+  <form class="date-nav" method="get" action="{{ url_for('bookings.index') }}" data-autosubmit>
+    <a class="btn btn-icon" href="{{ url_for('bookings.index', date=prev_date) }}" title="วันก่อนหน้า" aria-label="วันก่อนหน้า">&#8249;</a>
+    <label class="sr-only" for="date">เลือกวันที่</label>
+    <input type="date" id="date" name="date" value="{{ selected.isoformat() }}">
+    <a class="btn btn-icon" href="{{ url_for('bookings.index', date=next_date) }}" title="วันถัดไป" aria-label="วันถัดไป">&#8250;</a>
+    {% if not is_today %}<a class="btn" href="{{ url_for('bookings.index') }}">วันนี้</a>{% endif %}
+    <noscript><button class="btn" type="submit">ไป</button></noscript>
+  </form>
+</div>
+
+<section class="stats">
+  <div class="card stat accent-blue">
+    <span class="stat-label">{{ 'การจองวันนี้' if is_today else 'การจองวันที่เลือก' }}</span>
+    <span class="stat-value">{{ total_bookings }} <small>รายการ</small></span>
+    <span class="stat-sub">{{ selected|thai_date_short }}</span>
+  </div>
+  <div class="card stat accent-green">
+    <span class="stat-label">ห้องว่างตอนนี้</span>
+    <span class="stat-value">{{ free_now }}<small>/{{ rooms|length }}</small></span>
+    <span class="stat-sub">{{ 'ณ เวลาปัจจุบัน' if in_hours else 'นอกเวลาทำการ (08:00–18:00)' }}</span>
+  </div>
+  <div class="card stat accent-orange">
+    <span class="stat-label">การจองถัดไปของฉัน</span>
+    {% if next_mine %}
+      <span class="stat-value text" title="{{ next_mine.title }}">{{ next_mine.title }}</span>
+      <span class="stat-sub">{{ next_mine.booking_date|thai_date_short }} · {{ next_mine.start_time }}–{{ next_mine.end_time }} · {{ next_mine.room_name }}</span>
+    {% else %}
+      <span class="stat-value text muted">ไม่มีการจอง</span>
+      <span class="stat-sub"><a href="{{ url_for('bookings.new') }}">จองห้องเลย</a></span>
+    {% endif %}
+  </div>
+  <div class="card stat accent-red">
+    <span class="stat-label">รออนุมัติ{% if g.user.role != 'admin' %} (ของฉัน){% endif %}</span>
+    <span class="stat-value">{{ pending }} <small>รายการ</small></span>
+    <span class="stat-sub">
+      {% if g.user.role == 'admin' and pending %}<a href="{{ url_for('admin.rooms') }}#pending">ไปที่หน้าอนุมัติ</a>
+      {% else %}ห้องที่ต้องขออนุมัติ{% endif %}
+    </span>
+  </div>
+</section>
+
+<section class="card">
+  <div class="card-head">
+    <h2>ตารางการใช้ห้อง</h2>
+    <div class="legend">
+      <span><i class="lg-confirmed"></i>ยืนยันแล้ว</span>
+      <span><i class="lg-mine"></i>ของฉัน</span>
+      <span><i class="lg-pending"></i>รออนุมัติ</span>
+      {% if now_left is not none %}<span><i class="lg-now"></i>เวลาปัจจุบัน</span>{% endif %}
+    </div>
+  </div>
+
+  {% if rooms %}
+  <div class="timeline-scroll">
+    <div class="timeline" data-day-start="{{ hours[0] * 60 }}" data-day-end="{{ (hours[-1] + 1) * 60 }}" data-date="{{ selected.isoformat() }}" data-new-url="{{ url_for('bookings.new') }}">
+      <div class="tl-row tl-head">
+        <div class="tl-label">ห้อง / เวลา</div>
+        <div class="tl-hours">
+          {% for h in hours %}<span>{{ '%02d' % h }}:00</span>{% endfor %}
+        </div>
+      </div>
+      <div class="timeline-body">
+        {% for room in rooms %}
+        <div class="tl-row">
+          <div class="tl-label">
+            <strong>{{ room.name }}</strong>
+            <span>{{ room.location }} · {{ room.capacity }} ที่{% if room.require_approval %} · ต้องอนุมัติ{% endif %}</span>
+          </div>
+          <div class="tl-track" data-room-id="{{ room.id }}" title="คลิกช่องว่างเพื่อจอง">
+            <div class="tl-ghost"></div>
+            {% for item in by_room.get(room.id, []) %}
+              {% set b = item.b %}
+              <div class="tl-block{{ ' mine' if item.mine }}{{ ' pending' if b.status == 'pending' }}"
+                   style="left: {{ item.left }}%; width: {{ item.width }}%;"
+                   title="{{ b.title }}&#10;{{ b.start_time }}–{{ b.end_time }} · {{ b.user_name }}{% if b.department %} ({{ b.department }}){% endif %}&#10;{{ b.attendees }} คน · {{ b.status|status_label }}">
+                <strong>{{ b.title }}</strong>
+                <span>{{ b.start_time }}–{{ b.end_time }} · {{ b.user_name }}</span>
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+        {% endfor %}
+        {% if now_left is not none %}
+        <div class="tl-now-wrap"><div class="tl-now" id="tl-now" style="left: {{ now_left }}%;"></div></div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  <p class="muted small" style="margin: 10px 0 0;">คลิกช่องว่างในตารางเพื่อจองห้องตามเวลานั้น (ช่วงละ 30 นาที)</p>
+  {% else %}
+  <div class="tl-empty">ยังไม่มีห้องที่เปิดให้จอง</div>
+  {% endif %}
+</section>
+{% endblock %}

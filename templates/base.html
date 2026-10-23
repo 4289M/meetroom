@@ -1,0 +1,68 @@
+{% from "_macros.html" import calendar_icon %}
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+  <title>{% block title %}MeetRoom{% endblock %} – ระบบจองห้องประชุม</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+
+{% if g.user %}
+<header class="site-header">
+  <div class="header-inner">
+    <a class="brand" href="{{ url_for('bookings.index') }}">
+      <span class="brand-icon">{{ calendar_icon(22) }}</span>
+      <span>MeetRoom</span>
+    </a>
+    {% set ep = request.endpoint or '' %}
+    <nav class="main-nav">
+      <a href="{{ url_for('bookings.index') }}" class="{{ 'active' if ep == 'bookings.index' }}">ภาพรวม</a>
+      <a href="{{ url_for('bookings.new') }}" class="{{ 'active' if ep in ('bookings.new', 'bookings.edit') }}">จองห้อง</a>
+      <a href="{{ url_for('bookings.my_bookings') }}" class="{{ 'active' if ep == 'bookings.my_bookings' }}">การจองของฉัน</a>
+      {% if g.user.role == 'admin' %}
+      <a href="{{ url_for('admin.rooms') }}" class="{{ 'active' if ep.startswith('admin.') }}">
+        จัดการห้อง <span class="tag">Admin</span>
+        {% if admin_pending_count %}<span class="count-dot" title="รออนุมัติ">{{ admin_pending_count }}</span>{% endif %}
+      </a>
+      {% endif %}
+    </nav>
+    <div class="user-box">
+      <div class="user-meta">
+        <strong>{{ g.user.full_name }}</strong>
+        <small>{{ g.user.department or ('ผู้ดูแลระบบ' if g.user.role == 'admin' else '') }}</small>
+      </div>
+      <form method="post" action="{{ url_for('auth.logout') }}">
+        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-ghost btn-sm">ออกจากระบบ</button>
+      </form>
+    </div>
+  </div>
+</header>
+{% endif %}
+
+<main class="{% block main_class %}container{% endblock %}">
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    <div class="flashes">
+      {% for cat, msg in messages %}
+        <div class="alert alert-{{ 'success' if cat == 'success' else 'error' }}" role="alert">
+          <span>{{ msg }}</span>
+          <button type="button" class="alert-close" aria-label="ปิด" data-dismiss>&times;</button>
+        </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+  {% endwith %}
+  {% block content %}{% endblock %}
+</main>
+
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

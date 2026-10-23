@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% block title %}จัดการห้อง{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>จัดการห้องประชุม</h1>
+    <p class="muted">เพิ่ม/แก้ไขห้อง และอนุมัติคำขอจองห้องที่ต้องขออนุมัติ</p>
+  </div>
+</div>
+{% include "_admin_tabs.html" %}
+
+<section class="card" id="pending">
+  <div class="card-head">
+    <h2>รออนุมัติ <span class="badge badge-pending">{{ pending|length }} รายการ</span></h2>
+  </div>
+  {% if pending %}
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+        <tr><th>หัวข้อ</th><th>ห้อง</th><th>วัน / เวลา</th><th>ผู้จอง</th><th class="right">ผู้เข้าร่วม</th><th class="right">จัดการ</th></tr>
+      </thead>
+      <tbody>
+        {% for b in pending %}
+        <tr>
+          <td>
+            <strong>{{ b.title }}</strong>
+            <div>{% for eq in b.equipment.split(',') if eq.strip() %}<span class="chip">{{ eq.strip() }}</span>{% endfor %}</div>
+            {% if b.note %}<div class="muted small">{{ b.note }}</div>{% endif %}
+          </td>
+          <td>{{ b.room_name }}</td>
+          <td class="nowrap">{{ b.booking_date|thai_date }}<div class="muted small">{{ b.start_time }}–{{ b.end_time }} น.</div></td>
+          <td>{{ b.user_name }}<div class="muted small">{{ b.department }}</div></td>
+          <td class="right">{{ b.attendees }}/{{ b.capacity }}</td>
+          <td>
+            <div class="actions">
+              <form method="post" action="{{ url_for('admin.approve', booking_id=b.id) }}">
+                <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+                <button class="btn btn-sm btn-success" type="submit">อนุมัติ</button>
+              </form>
+              <form method="post" action="{{ url_for('admin.reject', booking_id=b.id) }}" data-confirm="ยืนยันไม่อนุมัติ “{{ b.title }}”?">
+                <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+                <button class="btn btn-sm btn-danger" type="submit">ไม่อนุมัติ</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="muted" style="margin: 0;">ไม่มีคำขอที่รออนุมัติ</p>
+  {% endif %}
+</section>
+
+<div class="admin-grid" style="margin-top: 20px;">
+  <section class="card">
+    <div class="card-head"><h2>ห้องทั้งหมด ({{ rooms|length }})</h2></div>
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
+          <tr><th>ชื่อห้อง</th><th>ที่ตั้ง</th><th class="right">ความจุ</th><th>อุปกรณ์</th><th>สถานะ</th><th class="right">จัดการ</th></tr>
+        </thead>
+        <tbody>
+          {% for r in rooms %}
+          <tr class="{{ 'row-off' if not r.is_active }}">
+            <td>
+              <strong>{{ r.name }}</strong>
+              {% if r.require_approval %}<div><span class="badge badge-pending">ต้องอนุมัติ</span></div>{% endif %}
+            </td>
+            <td>{{ r.location }}</td>
+            <td class="right">{{ r.capacity }}</td>
+            <td class="small">{{ r.equipment or '-' }}</td>
+            <td>
+              {% if r.is_active %}<span class="badge badge-confirmed">เปิดให้จอง</span>{% else %}<span class="badge badge-off">ปิดใช้งาน</span>{% endif %}
+              {% if r.future_count %}<div class="muted small">จองล่วงหน้า {{ r.future_count }}</div>{% endif %}
+            </td>
+            <td>
+              <div class="actions">
+                <a class="btn btn-sm" href="{{ url_for('admin.rooms', edit=r.id) }}">แก้ไข</a>
+                <form method="post" action="{{ url_for('admin.delete_room', room_id=r.id) }}" data-confirm="ยืนยันลบห้อง “{{ r.name }}”?">
+                  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+                  <button class="btn btn-sm btn-danger" type="submit" {% if r.future_count %}disabled title="มีการจองในอนาคต ให้ปิดใช้งานแทน"{% endif %}>ลบ</button>
+                </form>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>{{ 'แก้ไขห้อง' if edit_room else 'เพิ่มห้องใหม่' }}</h2>
+    {% if errors %}
+    <div class="alert alert-error" style="margin-bottom: 12px;"><ul style="margin:0">{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul></div>
+    {% endif %}
+    <form class="form-stack" method="post" action="{{ url_for('admin.save_room') }}">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      {% if edit_room %}<input type="hidden" name="id" value="{{ edit_room.id }}">{% endif %}
+      <label class="field"><span>ชื่อห้อง <span class="req">*</span></span>
+        <input type="text" name="name" value="{{ form.name }}" required maxlength="100"></label>
+      <label class="field"><span>ที่ตั้ง</span>
+        <input type="text" name="location" value="{{ form.location }}" placeholder="เช่น ชั้น 3" maxlength="100"></label>
+      <label class="field"><span>ความจุ (คน) <span class="req">*</span></span>
+        <input type="number" name="capacity" value="{{ form.capacity }}" min="1" max="500" required></label>
+      <label class="field"><span>อุปกรณ์ในห้อง</span>
+        <input type="text" name="equipment" value="{{ form.equipment }}" placeholder="คั่นด้วยเครื่องหมาย ," maxlength="300"></label>
+      <div class="toggle-row">
+        <label class="check"><input type="checkbox" name="require_approval" value="1" {{ 'checked' if form.require_approval }}> ต้องให้ผู้ดูแลอนุมัติ</label>
+        <label class="check"><input type="checkbox" name="is_active" value="1" {{ 'checked' if form.is_active }}> เปิดให้จอง</label>
+      </div>
+      <div class="form-actions">
+        {% if edit_room %}<a class="btn btn-ghost" href="{{ url_for('admin.rooms') }}">ยกเลิก</a>{% endif %}
+        <button class="btn btn-primary" type="submit">{{ 'บันทึก' if edit_room else 'เพิ่มห้อง' }}</button>
+      </div>
+    </form>
+  </section>
+</div>
+{% endblock %}

@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}{{ code }}{% endblock %}
+{% block content %}
+<div class="card empty-state">
+  <h1 class="error-code">{{ code }}</h1>
+  <p><strong>{{ message }}</strong></p>
+  {% if detail %}<p class="muted">{{ detail }}</p>{% endif %}
+  <a class="btn btn-primary" href="{{ url_for('bookings.index') }}">กลับหน้าภาพรวม</a>
+</div>
+{% endblock %}

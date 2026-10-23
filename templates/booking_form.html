@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+{% block title %}{{ 'แก้ไขการจอง' if booking else 'จองห้องประชุม' }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ 'แก้ไขการจอง' if booking else 'จองห้องประชุม' }}</h1>
+    <p class="muted">{{ 'แก้ไขรายละเอียดการจอง “' ~ booking.title ~ '”' if booking else 'กรอกรายละเอียดแล้วกด “ตรวจสอบห้องว่าง” ก่อนบันทึก' }}</p>
+  </div>
+</div>
+
+{% if errors %}
+<div class="alert alert-error" role="alert" style="margin-bottom: 20px;">
+  <div>
+    <strong>ไม่สามารถบันทึกได้</strong>
+    <ul>{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul>
+    {% if conflicts %}
+    <p style="margin: 8px 0 0;">การจองที่ชน:</p>
+    <ul>
+      {% for c in conflicts %}
+      <li>{{ c.booking_date|thai_date_short }} {{ c.start_time }}–{{ c.end_time }} · {{ c.title }} ({{ c.user_name }}){% if c.status == 'pending' %} · รออนุมัติ{% endif %}</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+<div class="booking-layout">
+  <form id="booking-form" class="card form-stack" method="post" novalidate
+        action="{{ url_for('bookings.edit', booking_id=booking.id) if booking else url_for('bookings.new') }}"
+        data-exclude-id="{{ booking.id if booking else '' }}"
+        data-api-availability="{{ url_for('bookings.api_availability') }}"
+        data-api-schedule="{{ url_for('bookings.api_schedule') }}">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+
+    <label class="field">
+      <span>หัวข้อการประชุม <span class="req">*</span></span>
+      <input type="text" name="title" value="{{ data.title }}" maxlength="200" required placeholder="เช่น ประชุมทีมประจำสัปดาห์">
+    </label>
+
+    <div class="form-grid">
+      <label class="field">
+        <span>ห้องประชุม <span class="req">*</span></span>
+        <select name="room_id" required>
+          {% for r in rooms %}
+          <option value="{{ r.id }}" {{ 'selected' if r.id == data.room_id|int }}>{{ r.name }} ({{ r.location }}, {{ r.capacity }} ที่){{ ' – ต้องอนุมัติ' if r.require_approval }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="field">
+        <span>วันที่ <span class="req">*</span></span>
+        <input type="date" name="booking_date" value="{{ data.booking_date }}" min="{{ min_date }}" max="{{ max_date }}" required>
+      </label>
+    </div>
+
+    <div class="form-grid-3">
+      <label class="field">
+        <span>เวลาเริ่ม <span class="req">*</span></span>
+        <input type="time" name="start_time" value="{{ data.start_time }}" min="08:00" max="17:30" step="1800" required>
+      </label>
+      <label class="field">
+        <span>เวลาสิ้นสุด <span class="req">*</span></span>
+        <input type="time" name="end_time" value="{{ data.end_time }}" min="08:30" max="18:00" step="1800" required>
+      </label>
+      <label class="field">
+        <span>จำนวนผู้เข้าร่วม</span>
+        <input type="number" name="attendees" value="{{ data.attendees if data.attendees is not none else 1 }}" min="1" max="{{ room.capacity if room else 500 }}">
+        <span class="field-hint" id="capacity-hint">{% if room %}ห้องนี้จุได้สูงสุด {{ room.capacity }} คน{% endif %}</span>
+      </label>
+    </div>
+
+    {% if not booking %}
+    <div class="field">
+      <span class="field-label">การจองซ้ำ</span>
+      <div class="repeat-row">
+        <select name="repeat" aria-label="รูปแบบการจองซ้ำ">
+          <option value="none" {{ 'selected' if data.repeat == 'none' }}>ไม่ซ้ำ</option>
+          <option value="daily" {{ 'selected' if data.repeat == 'daily' }}>ทุกวัน</option>
+          <option value="weekly" {{ 'selected' if data.repeat == 'weekly' }}>ทุกสัปดาห์</option>
+        </select>
+        <input type="number" name="repeat_count" value="{{ data.repeat_count or 2 }}" min="2" max="{{ max_repeat }}" aria-label="จำนวนครั้ง">
+      </div>
+      <span class="field-hint">จำนวนครั้งทั้งหมด (2–{{ max_repeat }} ครั้ง) · ถ้ามีครั้งไหนชน ระบบจะไม่บันทึกทั้งชุด</span>
+    </div>
+    {% else %}
+      {% if booking.recurring_group %}<p class="field-hint">การจองนี้เป็นส่วนหนึ่งของชุดการจองซ้ำ — การแก้ไขมีผลเฉพาะครั้งนี้</p>{% endif %}
+    {% endif %}
+
+    <div class="field">
+      <span class="field-label">อุปกรณ์ที่ต้องการ</span>
+      <div class="check-group">
+        {% for eq in equipment_options %}
+        <label class="check"><input type="checkbox" name="equipment" value="{{ eq }}" {{ 'checked' if eq in data.equipment }}> {{ eq }}</label>
+        {% endfor %}
+      </div>
+    </div>
+
+    <label class="field">
+      <span>หมายเหตุ</span>
+      <textarea name="note" maxlength="1000" placeholder="รายละเอียดเพิ่มเติม (ถ้ามี)">{{ data.note }}</textarea>
+    </label>
+
+    <div id="avail-box" class="avail-box" hidden aria-live="polite"></div>
+
+    <div class="form-actions">
+      <a class="btn btn-ghost" href="{{ url_for('bookings.my_bookings') if booking else url_for('bookings.index') }}">ยกเลิก</a>
+      <button type="button" class="btn" id="check-availability">ตรวจสอบห้องว่าง</button>
+      <button type="submit" class="btn btn-primary">{{ 'บันทึกการแก้ไข' if booking else 'ยืนยันการจอง' }}</button>
+    </div>
+  </form>
+
+  <aside class="side-panel">
+    <section class="card">
+      <h2>ช่วงเวลาของห้อง</h2>
+      <p class="muted small" id="schedule-date" style="margin-top: -4px;">{{ data.booking_date|thai_date if data.booking_date }}</p>
+      <ul class="slot-list" id="schedule-list">
+        {% set ns = namespace(items=[]) %}
+        {% for b in busy %}{% set ns.items = ns.items + [(b.start_time, 'busy', b)] %}{% endfor %}
+        {% for f in free %}{% set ns.items = ns.items + [(f.start, 'free', f)] %}{% endfor %}
+        {% for start, kind, x in ns.items|sort(attribute='0') %}
+          {% if kind == 'busy' %}
+          <li class="slot slot-busy{{ ' mine' if x.user_id == g.user.id }}{{ ' pending' if x.status == 'pending' }}">
+            <time>{{ x.start_time }}–{{ x.end_time }}</time>
+            <span class="slot-title" title="{{ x.title }}">{{ x.title }}{{ ' (รออนุมัติ)' if x.status == 'pending' }}</span>
+          </li>
+          {% else %}
+          <li class="slot slot-free"><time>{{ x.start }}–{{ x.end }}</time><span>ว่าง</span></li>
+          {% endif %}
+        {% else %}
+          <li class="muted">เลือกห้องและวันที่</li>
+        {% endfor %}
+      </ul>
+    </section>
+
+    <section class="card room-info">
+      <h2>ข้อมูลห้อง</h2>
+      <dl id="room-info">
+        {% if room %}
+        <dt>ห้อง</dt><dd>{{ room.name }}</dd>
+        <dt>ที่ตั้ง</dt><dd>{{ room.location or '-' }}</dd>
+        <dt>ความจุ</dt><dd>{{ room.capacity }} คน</dd>
+        <dt>อุปกรณ์</dt><dd>{{ room.equipment or '-' }}</dd>
+        <dt>การอนุมัติ</dt><dd>{% if room.require_approval %}<span class="badge badge-pending">ต้องรอผู้ดูแลอนุมัติ</span>{% else %}<span class="badge badge-confirmed">ยืนยันทันที</span>{% endif %}</dd>
+        {% endif %}
+      </dl>
+      <ul class="rules">
+        <li>จองได้ช่วง 08:00–18:00 น. ครั้งละไม่เกิน 4 ชั่วโมง</li>
+        <li>จองล่วงหน้าได้ไม่เกิน 30 วัน และจองย้อนหลังไม่ได้</li>
+        <li>จำนวนผู้เข้าร่วมต้องไม่เกินความจุของห้อง</li>
+        <li>ห้องที่ต้องอนุมัติจะมีสถานะ “รออนุมัติ” จนกว่าผู้ดูแลจะยืนยัน</li>
+      </ul>
+    </section>
+  </aside>
+</div>
+{% endblock %}

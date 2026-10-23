@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}จัดการผู้ใช้{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>จัดการผู้ใช้งาน</h1>
+    <p class="muted">เพิ่มผู้ใช้ รีเซ็ตรหัสผ่าน เปลี่ยนสิทธิ์ และปิดใช้งานบัญชี</p>
+  </div>
+</div>
+{% include "_admin_tabs.html" %}
+
+<div class="admin-grid">
+  <section class="card">
+    <div class="card-head"><h2>ผู้ใช้ทั้งหมด ({{ users|length }})</h2></div>
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
+          <tr><th>ผู้ใช้</th><th>แผนก</th><th>สิทธิ์</th><th>สถานะ</th><th>รีเซ็ตรหัสผ่าน</th><th class="right">จัดการ</th></tr>
+        </thead>
+        <tbody>
+          {% for u in users %}{% set is_me = u.id == g.user.id %}
+          <tr class="{{ 'row-off' if not u.is_active }}">
+            <td><strong>{{ u.full_name }}</strong>{% if is_me %} <span class="chip">คุณ</span>{% endif %}<div class="muted small">{{ u.username }}</div></td>
+            <td>{{ u.department or '-' }}</td>
+            <td>
+              {% if is_me %}
+                <span class="badge badge-admin">ผู้ดูแลระบบ</span>
+              {% else %}
+              <form class="inline-form" method="post" action="{{ url_for('admin.change_role', user_id=u.id) }}">
+                <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+                <select name="role" aria-label="สิทธิ์ของ {{ u.username }}" onchange="this.form.requestSubmit()">
+                  <option value="user" {{ 'selected' if u.role == 'user' }}>ผู้ใช้ทั่วไป</option>
+                  <option value="admin" {{ 'selected' if u.role == 'admin' }}>ผู้ดูแลระบบ</option>
+                </select>
+                <noscript><button class="btn btn-sm" type="submit">บันทึก</button></noscript>
+              </form>
+              {% endif %}
+            </td>
+            <td>{% if u.is_active %}<span class="badge badge-confirmed">ใช้งาน</span>{% else %}<span class="badge badge-off">ปิดใช้งาน</span>{% endif %}</td>
+            <td>
+              <form class="inline-form" method="post" action="{{ url_for('admin.reset_password', user_id=u.id) }}" data-confirm="ยืนยันรีเซ็ตรหัสผ่านของ {{ u.username }}?">
+                <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+                <input type="password" name="password" placeholder="รหัสใหม่" minlength="6" required autocomplete="new-password" aria-label="รหัสผ่านใหม่ของ {{ u.username }}" style="max-width: 130px;">
+                <button class="btn btn-sm" type="submit">รีเซ็ต</button>
+              </form>
+            </td>
+            <td>
+              <div class="actions">
+                {% if not is_me %}
+                <form method="post" action="{{ url_for('admin.toggle_active', user_id=u.id) }}" data-confirm="ยืนยัน{{ 'ปิด' if u.is_active else 'เปิด' }}ใช้งานบัญชี {{ u.username }}?">
+                  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+                  <button class="btn btn-sm {{ 'btn-danger' if u.is_active }}" type="submit">{{ 'ปิดใช้งาน' if u.is_active else 'เปิดใช้งาน' }}</button>
+                </form>
+                {% else %}<span class="muted small">—</span>{% endif %}
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>เพิ่มผู้ใช้ใหม่</h2>
+    {% if errors %}
+    <div class="alert alert-error" style="margin-bottom: 12px;"><ul style="margin:0">{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul></div>
+    {% endif %}
+    <form class="form-stack" method="post" action="{{ url_for('admin.add_user') }}">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <label class="field"><span>ชื่อผู้ใช้ <span class="req">*</span></span>
+        <input type="text" name="username" value="{{ form.username }}" required maxlength="50" autocomplete="off"></label>
+      <label class="field"><span>ชื่อ-นามสกุล <span class="req">*</span></span>
+        <input type="text" name="full_name" value="{{ form.full_name }}" required maxlength="100"></label>
+      <label class="field"><span>แผนก</span>
+        <input type="text" name="department" value="{{ form.department }}" maxlength="100" placeholder="เช่น ฝ่าย IT"></label>
+      <label class="field"><span>รหัสผ่าน <span class="req">*</span></span>
+        <input type="password" name="password" minlength="6" required autocomplete="new-password">
+        <span class="field-hint">อย่างน้อย 6 ตัวอักษร</span></label>
+      <label class="field"><span>สิทธิ์</span>
+        <select name="role">
+          <option value="user" {{ 'selected' if form.role == 'user' }}>ผู้ใช้ทั่วไป</option>
+          <option value="admin" {{ 'selected' if form.role == 'admin' }}>ผู้ดูแลระบบ</option>
+        </select></label>
+      <div class="form-actions"><button class="btn btn-primary" type="submit">เพิ่มผู้ใช้</button></div>
+    </form>
+  </section>
+</div>
+{% endblock %}

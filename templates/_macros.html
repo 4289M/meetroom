@@ -1,0 +1,15 @@
+{% macro calendar_icon(size=24) -%}
+<svg width="{{ size }}" height="{{ size }}" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+  <rect x="3" y="5" width="18" height="16" rx="3" stroke="currentColor" stroke-width="2"/>
+  <path d="M3 10h18M8 3v4M16 3v4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+  <rect x="7" y="13" width="4" height="4" rx="1" fill="currentColor"/>
+</svg>
+{%- endmacro %}
+
+{% macro status_badge(status) -%}
+<span class="badge badge-{{ status }}">{{ status|status_label }}</span>
+{%- endmacro %}
+
+{% macro csrf_field() -%}
+<input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+{%- endmacro %}

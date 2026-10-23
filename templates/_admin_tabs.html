@@ -1,0 +1,6 @@
+<nav class="tabs admin-tabs" aria-label="เมนูผู้ดูแลระบบ">
+  <a href="{{ url_for('admin.rooms') }}" class="{{ 'active' if request.endpoint == 'admin.rooms' or request.endpoint == 'admin.save_room' }}">
+    ห้องประชุม &amp; การอนุมัติ {% if admin_pending_count %}<span class="count">{{ admin_pending_count }}</span>{% endif %}
+  </a>
+  <a href="{{ url_for('admin.users') }}" class="{{ 'active' if request.endpoint in ('admin.users', 'admin.add_user') }}">ผู้ใช้งาน</a>
+</nav>
